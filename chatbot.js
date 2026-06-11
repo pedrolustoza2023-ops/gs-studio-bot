@@ -201,36 +201,54 @@ O *Giselle* vai entrar em contato em breve com o orçamento! 🙌\nObrigada pela
 
 // ── WEBHOOK ────────────────────────────────────────────────
 app.post('/webhook', async (req, res) => {
-  res.sendStatus(200); // responde rápido para a Evolution API
+  res.sendStatus(200);
 
   try {
     const body = req.body;
+    console.log('Webhook recebido:', JSON.stringify(body).slice(0, 300));
 
-    // Formato Evolution API v2
-    const evento = body?.event;
-    if (evento !== 'messages.upsert') return;
+    // Evolution API v2 — suporta múltiplos formatos
+    const evento = body?.event || body?.type || '';
+    console.log('Evento:', evento);
 
-    const msg = body?.data?.messages?.[0];
-    if (!msg) return;
+    if (!evento.includes('message')) return;
+
+    // Formato 1: body.data.messages[0]
+    // Formato 2: body.data (objeto direto)
+    // Formato 3: body.messages[0]
+    const msg = body?.data?.messages?.[0]
+             || body?.data
+             || body?.messages?.[0]
+             || null;
+
+    if (!msg) {
+      console.log('Nenhuma mensagem encontrada no body');
+      return;
+    }
 
     // Ignorar mensagens enviadas pelo próprio bot
     if (msg.key?.fromMe) return;
 
     // Ignorar grupos
-    const remoteJid = msg.key?.remoteJid || '';
+    const remoteJid = msg.key?.remoteJid || msg.remoteJid || '';
     if (remoteJid.includes('@g.us')) return;
 
     const numero = remoteJid.replace('@s.whatsapp.net', '');
-    const texto  = msg.message?.conversation
-                || msg.message?.extendedTextMessage?.text
-                || '';
 
-    if (!texto) return;
+    const texto = msg.message?.conversation
+               || msg.message?.extendedTextMessage?.text
+               || msg.body
+               || msg.text
+               || '';
+
+    console.log('Número:', numero, '| Texto:', texto);
+
+    if (!numero || !texto) return;
 
     await processar(numero, texto);
 
   } catch (err) {
-    console.error('Erro no webhook:', err.message);
+    console.error('Erro no webhook:', err.message, err.stack);
   }
 });
 
