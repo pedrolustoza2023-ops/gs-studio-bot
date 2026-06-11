@@ -16,14 +16,14 @@ const CONFIG = {
   EVOLUTION_URL: process.env.EVOLUTION_URL || 'https://SUA-URL.up.railway.app',
   EVOLUTION_KEY: process.env.EVOLUTION_KEY || 'SUA_API_KEY',
   INSTANCE:      process.env.INSTANCE_NAME || 'gsstudio',
-  PEDRO_NUMBER:  process.env.PEDRO_NUMBER  || '5511931449232',
+  GISELLE_NUMBER:  process.env.GISELLE_NUMBER  || '5511931449232',
   PORT:          process.env.PORT           || 3000,
 };
 
 // ── FLUXO DE CONVERSA ──────────────────────────────────────
 const FLOW = {
   inicio: {
-    msg: `Olá! 👋 Seja bem-vindo(a) à *GS Studio Criativo*!\n\nSou a assistente virtual e vou entender o que você precisa. Em seguida o *Pedro* entra em contato para fechar. 😊\n\nQual produto você está buscando?\n\n*1* — Convites e festas 🎉\n*2* — Banners e lonas 🖼️\n*3* — Cartões de visita 💼\n*4* — Adesivos e etiquetas 🏷️\n*5* — Brindes personalizados 🎁\n*6* — Outro produto`,
+    msg: `Olá! 👋 Seja bem-vindo(a) à *GS Studio Criativo*!\n\nSou a assistente virtual e vou entender o que você precisa. Em seguida o *Giselle* entra em contato para fechar. 😊\n\nQual produto você está buscando?\n\n*1* — Convites e festas 🎉\n*2* — Banners e lonas 🖼️\n*3* — Cartões de visita 💼\n*4* — Adesivos e etiquetas 🏷️\n*5* — Brindes personalizados 🎁\n*6* — Outro produto`,
     opcoes: {
       '1': 'Convites e festas 🎉',
       '2': 'Banners e lonas 🖼️',
@@ -110,8 +110,8 @@ async function enviar(numero, texto) {
   }
 }
 
-// ── NOTIFICAR PEDRO ────────────────────────────────────────
-async function notificarPedro(dados, numeroCliente) {
+// ── NOTIFICAR GISELLE ────────────────────────────────────────
+async function notificarGiselle(dados, numeroCliente) {
   const msg =
 `🔔 *Novo pedido qualificado!*
 _GS Studio Criativo_
@@ -127,7 +127,7 @@ _GS Studio Criativo_
 _Cliente pronto para fechar! Responda quando quiser:_
 👉 https://wa.me/${dados.telefone ? '55'+dados.telefone.replace(/\D/g,'') : numeroCliente}`;
 
-  await enviar(CONFIG.PEDRO_NUMBER, msg);
+  await enviar(CONFIG.GISELLE_NUMBER, msg);
 }
 
 // ── PROCESSAR MENSAGEM RECEBIDA ────────────────────────────
@@ -183,11 +183,11 @@ Registrei seu pedido:\n
 🎨 ${sessao.dados.arte}
 📦 ${sessao.dados.quantidade}
 ⏱️ ${sessao.dados.prazo}\n
-O *Pedro* vai entrar em contato em breve com o orçamento! 🙌\nObrigada pela preferência na *GS Studio Criativo*! 💚`
+O *Giselle* vai entrar em contato em breve com o orçamento! 🙌\nObrigada pela preferência na *GS Studio Criativo*! 💚`
     );
 
-    // Notifica Pedro
-    await notificarPedro(sessao.dados, numero);
+    // Notifica Giselle
+    await notificarGiselle(sessao.dados, numero);
 
     // Marca como finalizado
     sessao.etapa = 'finalizar';
