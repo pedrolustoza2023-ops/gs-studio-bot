@@ -1,0 +1,13 @@
+{
+  "name": "gs-studio-bot",
+  "version": "1.0.0",
+  "description": "Chatbot WhatsApp — GS Studio Criativo",
+  "main": "chatbot.js",
+  "scripts": {
+    "start": "node chatbot.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.6.0"
+  }
+}
