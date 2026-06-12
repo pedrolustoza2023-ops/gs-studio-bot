@@ -687,8 +687,8 @@ app.post('/webhook', async (req, res) => {
       }
     }
 
-    const evento = body?.event || body?.type || '';
-    if (!evento.includes('message')) return;
+    const evento = (body?.event || body?.type || '').toUpperCase();
+    if (!evento.includes('MESSAGE')) return;
 
     const msg = body?.data?.messages?.[0] || body?.data || body?.messages?.[0] || null;
     if (!msg) return;
