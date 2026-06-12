@@ -308,10 +308,21 @@ app.post('/webhook', async (req, res) => {
     console.log('Webhook recebido:', JSON.stringify(body).slice(0, 300));
 
     const evento = body?.event || body?.evento || '';
-    if (!evento.includes('message')) return;
+    console.log('Evento:', evento, '| Body keys:', Object.keys(body || {}));
 
-    const msg = body?.data?.messages?.[0] || body?.data || null;
-    if (!msg) return;
+    // Ignora eventos que não são de mensagem
+    if (evento && !evento.toLowerCase().includes('message')) return;
+
+    // Tenta extrair a mensagem de vários formatos possíveis
+    const msg = body?.data?.messages?.[0]
+             || (Array.isArray(body?.data) ? body.data[0] : body?.data)
+             || body?.messages?.[0]
+             || null;
+
+    if (!msg) {
+      console.log('Sem mensagem no body');
+      return;
+    }
 
     const fromMe = msg.key?.fromMe || msg.fromMe || false;
     if (fromMe) return;
