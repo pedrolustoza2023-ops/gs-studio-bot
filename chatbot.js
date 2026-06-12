@@ -103,18 +103,51 @@ async function enviarEmail(dados, numero) {
 
 // ── NOTIFICAR GISELLE (WPP + EMAIL) ───────────────────────
 async function notificarGiselle(dados, numero) {
-  const linhas = Object.entries(dados).map(([k,v]) => `${k}: ${v}`).join('\n');
+  // Formata número para exibição: 5511910320342 → 11 91032-0342
+  const numLimpo = numero.replace(/\D/g, '');
+  const ddd = numLimpo.slice(2, 4);
+  const tel = numLimpo.slice(4);
+  const telFormatado = tel.length === 9
+    ? `${tel.slice(0,5)}-${tel.slice(5)}`
+    : `${tel.slice(0,4)}-${tel.slice(4)}`;
+  const numeroExibicao = `${ddd} ${telFormatado}`;
+  const linkWpp = `https://wa.me/${numLimpo}`;
+
+  const campos = {
+    categoria: '🛍️ *Produto*',
+    produto: '📦 *Item*',
+    tamanho: '📐 *Tamanho*',
+    formato: '⬜ *Formato*',
+    laminacao: '✨ *Laminação*',
+    ima: '🧲 *Ímã*',
+    modelo: '📸 *Modelo*',
+    miolo: '📄 *Miolo*',
+    modeloAgenda: '📅 *Modelo agenda*',
+    tipoAgenda: '🗓️ *Tipo agenda*',
+    tipoVacina: '💉 *Tipo*',
+    tema: '🎨 *Tema*',
+    descricao: '📝 *Descrição*',
+    nome: '👤 *Cliente*',
+    contato: '📱 *Contato*',
+  };
+
+  const linhas = Object.entries(campos)
+    .filter(([k]) => dados[k])
+    .map(([k, label]) => `${label}:* ${dados[k]}`)
+    .join('\n');
+
   const msg =
 `🔔 *Novo pedido qualificado!*
 _GS Studio Criativo_
 
 ${linhas}
+📱 *WhatsApp:* ${numeroExibicao}
 
-📱 *WhatsApp cliente:* ${numero}
-_Cliente pronto! Responda quando quiser._`;
+_Cliente pronto para fechar! Responda quando quiser:_
+👉 ${linkWpp}`;
 
   await enviar(CONFIG.GISELLE_NUMBER, msg);
-  await enviarEmail({ ...dados, 'WhatsApp': numero }, numero);
+  await enviarEmail({ ...dados, 'WhatsApp': numeroExibicao }, numero);
 }
 
 // ══════════════════════════════════════════════════════════
@@ -125,6 +158,15 @@ async function processar(numero, texto) {
   const s = getSessao(numero);
   const txt = texto.trim();
   const low = txt.toLowerCase();
+
+  // Após pedido finalizado, só reativa com palavra-chave
+  if (s.etapa === 'FINALIZADO') {
+    if (low === 'pedido finalizado') {
+      resetarSessao(numero);
+      await mostrarMenu(numero);
+    }
+    return;
+  }
 
   const palavrasReinicio = ['oi','olá','ola','bom dia','boa tarde','boa noite','menu','inicio','início','reiniciar','recomeçar'];
   if (palavrasReinicio.includes(low)) {
@@ -663,7 +705,8 @@ A *Giselle* vai entrar em contato em breve com o orçamento! 💚
 Obrigada pela preferência na *GS Studio Criativo*! 🛍️`);
 
   await notificarGiselle(d, numero);
-  resetarSessao(numero);
+  // Entra em modo silencioso — só reativa com "pedido finalizado"
+  sessoes[numero] = { etapa: 'FINALIZADO', historico: [], dados: {} };
 }
 
 function capitalize(str) {
