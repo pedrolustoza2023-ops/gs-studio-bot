@@ -1,8 +1,6 @@
 /**
  * GS Studio Criativo — Chatbot WhatsApp
  * Evolution API — Webhook Handler
- * Fluxo: Adesivos, Tags, Fotos, Encadernação, Outro
- * Com navegação "Voltar" e notificação por e-mail
  */
 
 const express = require('express');
@@ -17,7 +15,7 @@ const CONFIG = {
   EVOLUTION_URL:  process.env.EVOLUTION_URL  || 'https://evolution-api-production-935a.up.railway.app',
   EVOLUTION_KEY:  process.env.EVOLUTION_KEY  || '',
   INSTANCE:       process.env.INSTANCE_NAME  || 'gsstudio',
-  GISELLE_NUMBER: process.env.GISELLE_NUMBER || '5511931449232',
+  GISELLE_NUMBER: process.env.GISELLE_NUMBER || '5511989519437',
   EMAIL_USER:     process.env.EMAIL_USER     || 'criativogsstudio@gmail.com',
   EMAIL_PASS:     process.env.EMAIL_PASS     || '',
   EMAIL_TO:       'criativogsstudio@gmail.com',
@@ -35,13 +33,13 @@ const sessoes = {};
 
 function getSessao(numero) {
   if (!sessoes[numero]) {
-    sessoes[numero] = { etapa: 'MENU', historico: [], dados: {} };
+    sessoes[numero] = { etapa: 'MENU', historico: [], dados: {}, nova: true };
   }
   return sessoes[numero];
 }
 
 function resetarSessao(numero) {
-  sessoes[numero] = { etapa: 'MENU', historico: [], dados: {} };
+  sessoes[numero] = { etapa: 'MENU', historico: [], dados: {}, nova: false };
 }
 
 // ── ENVIAR MENSAGEM WHATSAPP ───────────────────────────────
@@ -101,9 +99,8 @@ async function enviarEmail(dados, numero) {
   }
 }
 
-// ── NOTIFICAR GISELLE (WPP + EMAIL) ───────────────────────
+// ── NOTIFICAR GISELLE ──────────────────────────────────────
 async function notificarGiselle(dados, numero) {
-  // Formata número para exibição: 5511910320342 → 11 91032-0342
   const numLimpo = numero.replace(/\D/g, '');
   const ddd = numLimpo.slice(2, 4);
   const tel = numLimpo.slice(4);
@@ -114,26 +111,28 @@ async function notificarGiselle(dados, numero) {
   const linkWpp = `https://wa.me/${numLimpo}`;
 
   const campos = {
-    categoria: '🛍️ *Produto*',
-    produto: '📦 *Item*',
-    tamanho: '📐 *Tamanho*',
-    formato: '⬜ *Formato*',
-    laminacao: '✨ *Laminação*',
-    ima: '🧲 *Ímã*',
-    modelo: '📸 *Modelo*',
-    miolo: '📄 *Miolo*',
-    modeloAgenda: '📅 *Modelo agenda*',
-    tipoAgenda: '🗓️ *Tipo agenda*',
-    tipoVacina: '💉 *Tipo*',
-    tema: '🎨 *Tema*',
-    descricao: '📝 *Descrição*',
-    nome: '👤 *Cliente*',
-    contato: '📱 *Contato*',
+    categoria:       '🛍️ *Produto*',
+    produto:         '📦 *Item*',
+    tamanho:         '📐 *Tamanho*',
+    formato:         '⬜ *Formato*',
+    laminacao:       '✨ *Laminação*',
+    ima:             '🧲 *Ímã*',
+    modelo:          '📸 *Modelo*',
+    miolo:           '📄 *Miolo*',
+    modeloAgenda:    '📅 *Modelo agenda*',
+    tipoAgenda:      '🗓️ *Tipo agenda*',
+    tipoVacina:      '💉 *Tipo*',
+    tema:            '🎨 *Tema*',
+    descricao:       '📝 *Descrição*',
+    arte:            '🖼️ *Arte*',
+    itensAdicionais: '➕ *Itens adicionais*',
+    nome:            '👤 *Cliente*',
+    contato:         '📱 *Contato*',
   };
 
   const linhas = Object.entries(campos)
     .filter(([k]) => dados[k])
-    .map(([k, label]) => `${label}:* ${dados[k]}`)
+    .map(([k, label]) => `${label}: ${dados[k]}`)
     .join('\n');
 
   const msg =
@@ -159,14 +158,8 @@ async function processar(numero, texto) {
   const txt = texto.trim();
   const low = txt.toLowerCase();
 
-  // Após pedido finalizado, só reativa com palavra-chave
-  if (s.etapa === 'FINALIZADO') {
-    if (low === 'pedido finalizado') {
-      resetarSessao(numero);
-      await mostrarMenu(numero);
-    }
-    return;
-  }
+  // Após pedido finalizado, só reativa com "pedido finalizado" enviado pela Giselle (fromMe)
+  if (s.etapa === 'FINALIZADO') return;
 
   const palavrasReinicio = ['oi','olá','ola','bom dia','boa tarde','boa noite','menu','inicio','início','reiniciar','recomeçar'];
   if (palavrasReinicio.includes(low)) {
@@ -176,9 +169,8 @@ async function processar(numero, texto) {
   }
 
   if (low === 'voltar' || txt === '0') {
-    const s2 = getSessao(numero);
-    if (s2.historico.length > 0) {
-      s2.etapa = s2.historico.pop();
+    if (s.historico.length > 0) {
+      s.etapa = s.historico.pop();
     }
     await despachar(numero);
     return;
@@ -187,7 +179,7 @@ async function processar(numero, texto) {
   await handleEtapa(numero, txt);
 }
 
-// ── MOSTRAR MENU PRINCIPAL ─────────────────────────────────
+// ── MENU PRINCIPAL ─────────────────────────────────────────
 async function mostrarMenu(numero) {
   const s = getSessao(numero);
   s.etapa = 'MENU';
@@ -207,32 +199,35 @@ O que você está procurando?
 _Digite o número ou o nome da opção._`);
 }
 
-// ── DESPACHAR para etapa atual ─────────────────────────────
+// ── DESPACHAR ──────────────────────────────────────────────
 async function despachar(numero) {
   const s = getSessao(numero);
   switch(s.etapa) {
-    case 'MENU': return mostrarMenu(numero);
-    case 'ADESIVO_TAMANHO': return perguntarAdesivoTamanho(numero);
+    case 'MENU':                return mostrarMenu(numero);
+    case 'ADESIVO_TAMANHO':     return perguntarAdesivoTamanho(numero);
     case 'ADESIVO_OUTRO_TAMANHO': return perguntarAdesivoOutroTamanho(numero);
-    case 'ADESIVO_FORMATO': return perguntarAdesivoFormato(numero);
-    case 'ADESIVO_LAMINACAO': return perguntarAdesivoLaminacao(numero);
-    case 'FOTO_IMA': return perguntarFotoIma(numero);
-    case 'FOTO_MODELO': return perguntarFotoModelo(numero);
-    case 'FOTO_OUTRO_MODELO': return perguntarFotoOutroModelo(numero);
-    case 'ENCAD_PRODUTO': return perguntarEncadProduto(numero);
+    case 'ADESIVO_FORMATO':     return perguntarAdesivoFormato(numero);
+    case 'ADESIVO_LAMINACAO':   return perguntarAdesivoLaminacao(numero);
+    case 'FOTO_IMA':            return perguntarFotoIma(numero);
+    case 'FOTO_MODELO':         return perguntarFotoModelo(numero);
+    case 'FOTO_OUTRO_MODELO':   return perguntarFotoOutroModelo(numero);
+    case 'ENCAD_PRODUTO':       return perguntarEncadProduto(numero);
     case 'ENCAD_CADERNO_MIOLO': return perguntarCadernoMiolo(numero);
-    case 'ENCAD_CADERNO_TEMA': return perguntarTema(numero, 'Caderno A5');
+    case 'ENCAD_CADERNO_TEMA':  return perguntarTema(numero, 'Caderno A5');
     case 'ENCAD_AGENDA_MODELO': return perguntarAgendaModelo(numero);
-    case 'ENCAD_AGENDA_TIPO': return perguntarAgendaTipo(numero);
-    case 'ENCAD_AGENDA_TEMA': return perguntarTema(numero, 'Agenda A5');
-    case 'ENCAD_VACINA_TIPO': return perguntarVacinaTipo(numero);
-    case 'ENCAD_VACINA_TEMA': return perguntarTema(numero, 'Caderneta de Vacinação');
-    case 'ENCAD_KIT_TEMA': return perguntarTema(numero, 'Kit Bebê');
-    case 'ENCAD_OUTRO': return perguntarEncadOutro(numero);
-    case 'OUTRO_DESC': return perguntarOutroDesc(numero);
-    case 'COLETAR_NOME': return perguntarNome(numero);
-    case 'COLETAR_CONTATO': return perguntarContato(numero);
-    default: return mostrarMenu(numero);
+    case 'ENCAD_AGENDA_TIPO':   return perguntarAgendaTipo(numero);
+    case 'ENCAD_AGENDA_TEMA':   return perguntarTema(numero, 'Agenda A5');
+    case 'ENCAD_VACINA_TIPO':   return perguntarVacinaTipo(numero);
+    case 'ENCAD_VACINA_TEMA':   return perguntarTema(numero, 'Caderneta de Vacinação');
+    case 'ENCAD_KIT_TEMA':      return perguntarTema(numero, 'Kit Bebê');
+    case 'ENCAD_OUTRO':         return perguntarEncadOutro(numero);
+    case 'OUTRO_DESC':          return perguntarOutroDesc(numero);
+    case 'ARTE_PERGUNTA':       return perguntarArte(numero);
+    case 'NOVA_PECA_PERGUNTA':  return perguntarNovaPeca(numero);
+    case 'NOVA_PECA_DESC':      return perguntarNovaPecaDesc(numero);
+    case 'COLETAR_NOME':        return perguntarNome(numero);
+    case 'COLETAR_CONTATO':     return perguntarContato(numero);
+    default:                    return mostrarMenu(numero);
   }
 }
 
@@ -242,6 +237,7 @@ async function handleEtapa(numero, txt) {
 
   switch(s.etapa) {
 
+    // ── MENU ──
     case 'MENU': {
       const op = txt.replace(/[^1-5]/g,'');
       if (op === '1' || /adesivo/i.test(txt)) {
@@ -270,15 +266,16 @@ async function handleEtapa(numero, txt) {
         s.etapa = 'OUTRO_DESC';
         await perguntarOutroDesc(numero);
       } else {
-        await enviar(numero, 'Por favor, digite o número da opção desejada (1 a 5) ou o nome do produto. 😊');
+        await mostrarMenu(numero);
       }
       break;
     }
 
+    // ── ADESIVOS/TAGS — TAMANHO ──
     case 'ADESIVO_TAMANHO': {
       const tamanhos = {'1':'2 cm','2':'3 cm','3':'4 cm','4':'5 cm','5':'6 cm','6':'7 cm','7':'8 cm','8':'Outro tamanho'};
       const val = tamanhos[txt] || (txt.match(/\d/) ? txt : null);
-      if (!val) { await enviar(numero,'Digite o número da opção ou o tamanho desejado.'); break; }
+      if (!val) { await perguntarAdesivoTamanho(numero); break; }
       if (val === 'Outro tamanho' || txt === '8') {
         s.dados.tamanho = 'Outro';
         s.historico.push('ADESIVO_TAMANHO');
@@ -293,16 +290,20 @@ async function handleEtapa(numero, txt) {
       break;
     }
 
+    // ── ADESIVOS — OUTRO TAMANHO ──
     case 'ADESIVO_OUTRO_TAMANHO': {
       s.dados.tamanho = txt;
-      await finalizarOrcamento(numero);
+      s.historico.push('ADESIVO_OUTRO_TAMANHO');
+      s.etapa = 'ARTE_PERGUNTA';
+      await perguntarArte(numero);
       break;
     }
 
+    // ── ADESIVOS — FORMATO ──
     case 'ADESIVO_FORMATO': {
       const formatos = {'1':'Redondo','2':'Quadrado','redondo':'Redondo','quadrado':'Quadrado'};
       const val = formatos[txt.toLowerCase()] || null;
-      if (!val) { await enviar(numero,'Digite *1* para Redondo ou *2* para Quadrado.'); break; }
+      if (!val) { await perguntarAdesivoFormato(numero); break; }
       s.dados.formato = val;
       s.historico.push('ADESIVO_FORMATO');
       s.etapa = 'ADESIVO_LAMINACAO';
@@ -310,19 +311,23 @@ async function handleEtapa(numero, txt) {
       break;
     }
 
+    // ── ADESIVOS — LAMINAÇÃO ──
     case 'ADESIVO_LAMINACAO': {
       const ops = {'1':'Sim','2':'Não','sim':'Sim','não':'Não','nao':'Não','s':'Sim','n':'Não'};
       const val = ops[txt.toLowerCase()] || null;
-      if (!val) { await enviar(numero,'Digite *1* para Sim ou *2* para Não.'); break; }
+      if (!val) { await perguntarAdesivoLaminacao(numero); break; }
       s.dados.laminacao = val;
-      await finalizarOrcamento(numero);
+      s.historico.push('ADESIVO_LAMINACAO');
+      s.etapa = 'ARTE_PERGUNTA';
+      await perguntarArte(numero);
       break;
     }
 
+    // ── FOTOS — ÍMÃ ──
     case 'FOTO_IMA': {
       const ops = {'1':'Com ímã','2':'Sem ímã','com ima':'Com ímã','sem ima':'Sem ímã','com ímã':'Com ímã','sem ímã':'Sem ímã'};
       const val = ops[txt.toLowerCase()] || null;
-      if (!val) { await enviar(numero,'Digite *1* para Com ímã ou *2* para Sem ímã.'); break; }
+      if (!val) { await perguntarFotoIma(numero); break; }
       s.dados.ima = val;
       s.historico.push('FOTO_IMA');
       s.etapa = 'FOTO_MODELO';
@@ -330,13 +335,14 @@ async function handleEtapa(numero, txt) {
       break;
     }
 
+    // ── FOTOS — MODELO ──
     case 'FOTO_MODELO': {
       const modelos = {
         '1':'Foto Normal A6','2':'Foto Polaroid 7x9 cm',
         '3':'Foto Mini Polaroid 3,5x4 cm','4':'Foto Tirinha 5x20 cm','5':'Outro modelo'
       };
       const val = modelos[txt] || null;
-      if (!val) { await enviar(numero,'Digite o número do modelo desejado (1 a 5).'); break; }
+      if (!val) { await perguntarFotoModelo(numero); break; }
       if (val === 'Outro modelo') {
         s.historico.push('FOTO_MODELO');
         s.etapa = 'FOTO_OUTRO_MODELO';
@@ -348,33 +354,48 @@ async function handleEtapa(numero, txt) {
       break;
     }
 
+    // ── FOTOS — OUTRO MODELO ──
     case 'FOTO_OUTRO_MODELO': {
       s.dados.modelo = txt;
-      await finalizarOrcamento(numero);
+      s.historico.push('FOTO_OUTRO_MODELO');
+      s.etapa = 'ARTE_PERGUNTA';
+      await perguntarArte(numero);
       break;
     }
 
+    // ── FOTOS — CONFIRMAÇÃO DE VALORES ──
+    case 'FOTO_CONFIRMAR': {
+      if (txt === '1' || /sim/i.test(txt)) {
+        s.historico.push('FOTO_CONFIRMAR');
+        s.etapa = 'ARTE_PERGUNTA';
+        await perguntarArte(numero);
+      } else {
+        resetarSessao(numero);
+        await mostrarMenu(numero);
+      }
+      break;
+    }
+
+    // ── ENCADERNAÇÃO — PRODUTO ──
     case 'ENCAD_PRODUTO': {
-      const prods = {
-        '1':'Caderno A5','2':'Agenda A5','3':'Caderneta de Vacinação A5',
-        '4':'Kit Bebê','5':'Outro'
-      };
+      const prods = {'1':'Caderno A5','2':'Agenda A5','3':'Caderneta de Vacinação A5','4':'Kit Bebê','5':'Outro'};
       const val = prods[txt] || null;
-      if (!val) { await enviar(numero,'Digite o número do produto desejado (1 a 5).'); break; }
+      if (!val) { await perguntarEncadProduto(numero); break; }
       s.dados.produto = val;
       s.historico.push('ENCAD_PRODUTO');
-      if (val === 'Caderno A5') { s.etapa = 'ENCAD_CADERNO_MIOLO'; await perguntarCadernoMiolo(numero); }
-      else if (val === 'Agenda A5') { s.etapa = 'ENCAD_AGENDA_MODELO'; await perguntarAgendaModelo(numero); }
+      if (val === 'Caderno A5')                  { s.etapa = 'ENCAD_CADERNO_MIOLO'; await perguntarCadernoMiolo(numero); }
+      else if (val === 'Agenda A5')              { s.etapa = 'ENCAD_AGENDA_MODELO'; await perguntarAgendaModelo(numero); }
       else if (val === 'Caderneta de Vacinação A5') { s.etapa = 'ENCAD_VACINA_TIPO'; await perguntarVacinaTipo(numero); }
-      else if (val === 'Kit Bebê') { s.etapa = 'ENCAD_KIT_TEMA'; await perguntarTema(numero, 'Kit Bebê'); }
-      else { s.etapa = 'ENCAD_OUTRO'; await perguntarEncadOutro(numero); }
+      else if (val === 'Kit Bebê')               { s.etapa = 'ENCAD_KIT_TEMA'; await perguntarTema(numero, 'Kit Bebê'); }
+      else                                       { s.etapa = 'ENCAD_OUTRO'; await perguntarEncadOutro(numero); }
       break;
     }
 
+    // ── CADERNO — MIOLO ──
     case 'ENCAD_CADERNO_MIOLO': {
       const ops = {'1':'Pautado','2':'Pontilhado','3':'Sem pauta','pautado':'Pautado','pontilhado':'Pontilhado','sem pauta':'Sem pauta'};
       const val = ops[txt.toLowerCase()] || null;
-      if (!val) { await enviar(numero,'Digite o número do tipo de miolo (1, 2 ou 3).'); break; }
+      if (!val) { await perguntarCadernoMiolo(numero); break; }
       s.dados.miolo = val;
       s.historico.push('ENCAD_CADERNO_MIOLO');
       s.etapa = 'ENCAD_CADERNO_TEMA';
@@ -382,10 +403,11 @@ async function handleEtapa(numero, txt) {
       break;
     }
 
+    // ── AGENDA — MODELO ──
     case 'ENCAD_AGENDA_MODELO': {
       const ops = {'1':'Dois dias por página','2':'Um dia por página'};
       const val = ops[txt] || null;
-      if (!val) { await enviar(numero,'Digite *1* para Dois dias por página ou *2* para Um dia por página.'); break; }
+      if (!val) { await perguntarAgendaModelo(numero); break; }
       s.dados.modeloAgenda = val;
       s.historico.push('ENCAD_AGENDA_MODELO');
       s.etapa = 'ENCAD_AGENDA_TIPO';
@@ -393,10 +415,11 @@ async function handleEtapa(numero, txt) {
       break;
     }
 
+    // ── AGENDA — TIPO ──
     case 'ENCAD_AGENDA_TIPO': {
       const ops = {'1':'Datada','2':'Permanente','datada':'Datada','permanente':'Permanente'};
       const val = ops[txt.toLowerCase()] || null;
-      if (!val) { await enviar(numero,'Digite *1* para Datada ou *2* para Permanente.'); break; }
+      if (!val) { await perguntarAgendaTipo(numero); break; }
       s.dados.tipoAgenda = val;
       s.historico.push('ENCAD_AGENDA_TIPO');
       s.etapa = 'ENCAD_AGENDA_TEMA';
@@ -404,10 +427,11 @@ async function handleEtapa(numero, txt) {
       break;
     }
 
+    // ── VACINAÇÃO — TIPO ──
     case 'ENCAD_VACINA_TIPO': {
       const ops = {'1':'Restauração','2':'Nova','restauração':'Restauração','nova':'Nova','restauracao':'Restauração'};
       const val = ops[txt.toLowerCase()] || null;
-      if (!val) { await enviar(numero,'Digite *1* para Restauração ou *2* para Nova.'); break; }
+      if (!val) { await perguntarVacinaTipo(numero); break; }
       s.dados.tipoVacina = val;
       s.historico.push('ENCAD_VACINA_TIPO');
       s.etapa = 'ENCAD_VACINA_TEMA';
@@ -415,27 +439,80 @@ async function handleEtapa(numero, txt) {
       break;
     }
 
+    // ── TEMAS ──
     case 'ENCAD_CADERNO_TEMA':
     case 'ENCAD_AGENDA_TEMA':
     case 'ENCAD_VACINA_TEMA':
     case 'ENCAD_KIT_TEMA': {
       s.dados.tema = txt;
-      await finalizarOrcamento(numero);
+      s.historico.push(s.etapa);
+      s.etapa = 'ARTE_PERGUNTA';
+      await perguntarArte(numero);
       break;
     }
 
+    // ── ENCAD OUTRO ──
     case 'ENCAD_OUTRO': {
       s.dados.descricao = txt;
-      await finalizarOrcamento(numero);
+      s.historico.push('ENCAD_OUTRO');
+      s.etapa = 'ARTE_PERGUNTA';
+      await perguntarArte(numero);
       break;
     }
 
+    // ── OUTRO ──
     case 'OUTRO_DESC': {
       s.dados.descricao = txt;
-      await finalizarOrcamento(numero);
+      s.historico.push('OUTRO_DESC');
+      s.etapa = 'ARTE_PERGUNTA';
+      await perguntarArte(numero);
       break;
     }
 
+    // ── ARTE ──
+    case 'ARTE_PERGUNTA': {
+      const ops = {'1':'Sim','2':'Não','sim':'Sim','não':'Não','nao':'Não','s':'Sim','n':'Não'};
+      const val = ops[txt.toLowerCase()] || null;
+      if (!val) { await perguntarArte(numero); break; }
+      if (val === 'Sim') {
+        s.dados.arte = 'Arte própria ✅';
+      } else {
+        s.dados.arte = 'Criação de arte (+R$ 10,00) 🎨';
+        await enviar(numero, `ℹ️ A criação de arte tem um custo adicional de *R$ 10,00*.\n\nJá anotamos no seu pedido! 😊`);
+      }
+      s.historico.push('ARTE_PERGUNTA');
+      s.etapa = 'NOVA_PECA_PERGUNTA';
+      await perguntarNovaPeca(numero);
+      break;
+    }
+
+    // ── NOVA PEÇA ──
+    case 'NOVA_PECA_PERGUNTA': {
+      const ops = {'1':'Sim','2':'Não','sim':'Sim','não':'Não','nao':'Não','s':'Sim','n':'Não'};
+      const val = ops[txt.toLowerCase()] || null;
+      if (!val) { await perguntarNovaPeca(numero); break; }
+      if (val === 'Sim') {
+        s.historico.push('NOVA_PECA_PERGUNTA');
+        s.etapa = 'NOVA_PECA_DESC';
+        await perguntarNovaPecaDesc(numero);
+      } else {
+        s.historico.push('NOVA_PECA_PERGUNTA');
+        s.etapa = 'COLETAR_NOME';
+        await perguntarNome(numero);
+      }
+      break;
+    }
+
+    // ── NOVA PEÇA DESCRIÇÃO ──
+    case 'NOVA_PECA_DESC': {
+      s.dados.itensAdicionais = txt;
+      s.historico.push('NOVA_PECA_DESC');
+      s.etapa = 'COLETAR_NOME';
+      await perguntarNome(numero);
+      break;
+    }
+
+    // ── COLETAR NOME ──
     case 'COLETAR_NOME': {
       s.dados.nome = txt;
       s.historico.push('COLETAR_NOME');
@@ -444,6 +521,7 @@ async function handleEtapa(numero, txt) {
       break;
     }
 
+    // ── COLETAR CONTATO ──
     case 'COLETAR_CONTATO': {
       s.dados.contato = txt;
       await confirmarPedido(numero);
@@ -471,7 +549,7 @@ async function perguntarAdesivoTamanho(numero) {
 *7* — 8 cm
 *8* — Outro tamanho
 
-_Digite *voltar* para retornar ao menu._`);
+_Digite o número ou o tamanho. Digite *voltar* para retornar._`);
 }
 
 async function perguntarAdesivoOutroTamanho(numero) {
@@ -541,17 +619,19 @@ async function mostrarValoresFoto(numero) {
   const ima = s.dados.ima;
   let tabela = '';
 
-  if (modelo === 'Foto Polaroid 7x9 cm') {
+  if (modelo === 'Foto Normal A6') {
+    tabela = `• Kit com 4 fotos — valor sob consulta`;
+  } else if (modelo === 'Foto Polaroid 7x9 cm') {
     if (ima === 'Sem ímã') tabela = `• Unidade: *R$ 3,50*\n• Kit com 8 fotos: *R$ 25,00*`;
-    else tabela = `• Unidade: *R$ 4,50*\n• Kit com 8 fotos: *R$ 30,00*`;
+    else                   tabela = `• Unidade: *R$ 4,50*\n• Kit com 8 fotos: *R$ 30,00*`;
   } else if (modelo === 'Foto Mini Polaroid 3,5x4 cm') {
     if (ima === 'Sem ímã') tabela = `• Kit com 35 fotos: *R$ 25,00*`;
-    else tabela = `• Kit com 35 fotos: *R$ 30,00*`;
+    else                   tabela = `• Kit com 35 fotos: *R$ 30,00*`;
   } else if (modelo === 'Foto Tirinha 5x20 cm') {
     if (ima === 'Sem ímã') tabela = `• Kit com 5 fotos: *R$ 25,00*`;
-    else tabela = `• Kit com 5 fotos: *R$ 30,00*`;
+    else                   tabela = `• Kit com 5 fotos: *R$ 30,00*`;
   } else {
-    tabela = `• Preço sob consulta`;
+    tabela = `• Valor sob consulta`;
   }
 
   await enviar(numero,
@@ -565,17 +645,6 @@ Deseja prosseguir com o pedido?
 *2* — Não, voltar ao menu`);
 
   s.etapa = 'FOTO_CONFIRMAR';
-}
-
-async function handleFotoConfirmar(numero, txt) {
-  const s = getSessao(numero);
-  if (txt === '1' || /sim/i.test(txt)) {
-    s.etapa = 'COLETAR_NOME';
-    await perguntarNome(numero);
-  } else {
-    resetarSessao(numero);
-    await mostrarMenu(numero);
-  }
 }
 
 async function perguntarEncadProduto(numero) {
@@ -657,6 +726,37 @@ async function perguntarOutroDesc(numero) {
 _Digite *voltar* para retornar ao menu._`);
 }
 
+async function perguntarArte(numero) {
+  await enviar(numero,
+`🖼️ Você tem *arte pronta* para o pedido?
+
+*1* — Sim, tenho arte pronta
+*2* — Não, preciso criar
+
+_A criação de arte tem custo adicional de R$ 10,00._
+_Digite *voltar* para retornar._`);
+}
+
+async function perguntarNovaPeca(numero) {
+  await enviar(numero,
+`➕ Deseja adicionar mais algum item ao pedido?
+
+*1* — Sim
+*2* — Não
+
+_Digite *voltar* para retornar._`);
+}
+
+async function perguntarNovaPecaDesc(numero) {
+  await enviar(numero,
+`📦 Descreva o(s) item(ns) adicional(is):
+
+Informe o *produto*, *tamanho* e *quantidade*.
+Ex: _50 adesivos redondos 5cm, 10 fotos polaroid sem ímã_
+
+_Digite *voltar* para retornar._`);
+}
+
 async function perguntarNome(numero) {
   await enviar(numero,
 `Ótimo! Quase lá! 😊
@@ -669,19 +769,6 @@ async function perguntarContato(numero) {
 `Perfeito! Pode me passar um *número de contato* com DDD?
 
 _(pode ser este mesmo ou outro)_`);
-}
-
-// ── FINALIZAR ORÇAMENTO ────────────────────────────────────
-async function finalizarOrcamento(numero) {
-  const s = getSessao(numero);
-  s.historico.push(s.etapa);
-  s.etapa = 'COLETAR_NOME';
-  await enviar(numero,
-`✅ Anotei todas as informações do seu pedido!
-
-Agora preciso de alguns dados para a Giselle entrar em contato.
-
-Qual é o seu *nome completo*?`);
 }
 
 // ── CONFIRMAR PEDIDO FINAL ─────────────────────────────────
@@ -705,7 +792,6 @@ A *Giselle* vai entrar em contato em breve com o orçamento! 💚
 Obrigada pela preferência na *GS Studio Criativo*! 🛍️`);
 
   await notificarGiselle(d, numero);
-  // Entra em modo silencioso — só reativa com "pedido finalizado"
   sessoes[numero] = { etapa: 'FINALIZADO', historico: [], dados: {} };
 }
 
@@ -713,7 +799,7 @@ function capitalize(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-// ── DEBUG: armazena último payload recebido ────────────────
+// ── DEBUG ──────────────────────────────────────────────────
 let ultimoPayload = null;
 app.get('/debug', (req, res) => res.json({ ultimoPayload }));
 
@@ -722,14 +808,12 @@ app.post('/webhook', async (req, res) => {
   res.sendStatus(200);
   try {
     let body = req.body;
-    ultimoPayload = body; // salva para debug
-    console.log('Webhook raw:', JSON.stringify(body).slice(0, 600));
+    ultimoPayload = body;
+    console.log('Webhook raw:', JSON.stringify(body).slice(0, 400));
 
-    // Evolution API com webhookBase64: true envia body.data como string Base64
     if (body && typeof body.data === 'string') {
       try {
         body = { ...body, data: JSON.parse(Buffer.from(body.data, 'base64').toString('utf8')) };
-        console.log('Base64 decodificado:', JSON.stringify(body.data).slice(0, 400));
       } catch (e) {
         console.error('Erro ao decodificar base64:', e.message);
         return;
@@ -737,11 +821,9 @@ app.post('/webhook', async (req, res) => {
     }
 
     const evento = (body?.event || body?.type || '').toUpperCase();
-    console.log('Evento:', evento);
     if (!evento.includes('MESSAGE')) return;
 
     const msg = body?.data?.messages?.[0] || body?.data || body?.messages?.[0] || null;
-    console.log('Msg extraída:', JSON.stringify(msg)?.slice(0, 300));
     if (!msg) return;
 
     const remoteJid = msg.key?.remoteJid || msg.remoteJid || '';
@@ -752,10 +834,9 @@ app.post('/webhook', async (req, res) => {
                || msg.message?.extendedTextMessage?.text
                || msg.body || msg.text || '';
 
-    console.log('De:', numero, '| fromMe:', msg.key?.fromMe, '| Msg:', texto);
     if (!numero || !texto) return;
 
-    // Giselle digita "pedido finalizado" na conversa → reativa o bot para aquele cliente
+    // Giselle digita "pedido finalizado" → reativa o bot para aquele cliente
     if (msg.key?.fromMe) {
       if (texto.trim().toLowerCase() === 'pedido finalizado') {
         resetarSessao(numero);
@@ -764,9 +845,14 @@ app.post('/webhook', async (req, res) => {
       return;
     }
 
+    console.log('De:', numero, '| Msg:', texto);
+
     const s = getSessao(numero);
-    if (s.etapa === 'FOTO_CONFIRMAR') {
-      await handleFotoConfirmar(numero, texto.trim());
+
+    // Primeira mensagem do cliente → mostra menu automaticamente
+    if (s.nova) {
+      s.nova = false;
+      await mostrarMenu(numero);
       return;
     }
 
