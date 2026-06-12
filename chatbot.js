@@ -670,17 +670,23 @@ function capitalize(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
+// ── DEBUG: armazena último payload recebido ────────────────
+let ultimoPayload = null;
+app.get('/debug', (req, res) => res.json({ ultimoPayload }));
+
 // ── WEBHOOK ────────────────────────────────────────────────
 app.post('/webhook', async (req, res) => {
   res.sendStatus(200);
   try {
     let body = req.body;
-    console.log('Webhook raw:', JSON.stringify(body).slice(0, 200));
+    ultimoPayload = body; // salva para debug
+    console.log('Webhook raw:', JSON.stringify(body).slice(0, 600));
 
     // Evolution API com webhookBase64: true envia body.data como string Base64
     if (body && typeof body.data === 'string') {
       try {
         body = { ...body, data: JSON.parse(Buffer.from(body.data, 'base64').toString('utf8')) };
+        console.log('Base64 decodificado:', JSON.stringify(body.data).slice(0, 400));
       } catch (e) {
         console.error('Erro ao decodificar base64:', e.message);
         return;
@@ -688,9 +694,11 @@ app.post('/webhook', async (req, res) => {
     }
 
     const evento = (body?.event || body?.type || '').toUpperCase();
+    console.log('Evento:', evento);
     if (!evento.includes('MESSAGE')) return;
 
     const msg = body?.data?.messages?.[0] || body?.data || body?.messages?.[0] || null;
+    console.log('Msg extraída:', JSON.stringify(msg)?.slice(0, 300));
     if (!msg) return;
     if (msg.key?.fromMe) return;
 
