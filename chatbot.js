@@ -31,7 +31,6 @@ const transporter = nodemailer.createTransport({
 });
 
 // ── ESTADO DAS SESSÕES ─────────────────────────────────────
-// { "55119...": { etapa, historico: [], dados: {} } }
 const sessoes = {};
 
 function getSessao(numero) {
@@ -60,7 +59,7 @@ async function enviar(numero, texto) {
 
 // ── ENVIAR E-MAIL ──────────────────────────────────────────
 async function enviarEmail(dados, numero) {
-  if (!CONFIG.EMAIL_PASS) return; // sem senha configurada, pula
+  if (!CONFIG.EMAIL_PASS) return;
 
   const linhas = Object.entries(dados)
     .map(([k, v]) => `<tr><td style="padding:6px 12px;color:#666;font-size:13px">${k}</td><td style="padding:6px 12px;font-weight:600;font-size:13px">${v}</td></tr>`)
@@ -127,7 +126,6 @@ async function processar(numero, texto) {
   const txt = texto.trim();
   const low = txt.toLowerCase();
 
-  // Reiniciar
   const palavrasReinicio = ['oi','olá','ola','bom dia','boa tarde','boa noite','menu','inicio','início','reiniciar','recomeçar'];
   if (palavrasReinicio.includes(low)) {
     resetarSessao(numero);
@@ -135,7 +133,6 @@ async function processar(numero, texto) {
     return;
   }
 
-  // Voltar
   if (low === 'voltar' || txt === '0') {
     const s2 = getSessao(numero);
     if (s2.historico.length > 0) {
@@ -203,7 +200,6 @@ async function handleEtapa(numero, txt) {
 
   switch(s.etapa) {
 
-    // ── MENU ──
     case 'MENU': {
       const op = txt.replace(/[^1-5]/g,'');
       if (op === '1' || /adesivo/i.test(txt)) {
@@ -237,7 +233,6 @@ async function handleEtapa(numero, txt) {
       break;
     }
 
-    // ── ADESIVOS/TAGS — TAMANHO ──
     case 'ADESIVO_TAMANHO': {
       const tamanhos = {'1':'2 cm','2':'3 cm','3':'4 cm','4':'5 cm','5':'6 cm','6':'7 cm','7':'8 cm','8':'Outro tamanho'};
       const val = tamanhos[txt] || (txt.match(/\d/) ? txt : null);
@@ -256,14 +251,12 @@ async function handleEtapa(numero, txt) {
       break;
     }
 
-    // ── ADESIVOS — OUTRO TAMANHO ──
     case 'ADESIVO_OUTRO_TAMANHO': {
       s.dados.tamanho = txt;
       await finalizarOrcamento(numero);
       break;
     }
 
-    // ── ADESIVOS — FORMATO ──
     case 'ADESIVO_FORMATO': {
       const formatos = {'1':'Redondo','2':'Quadrado','redondo':'Redondo','quadrado':'Quadrado'};
       const val = formatos[txt.toLowerCase()] || null;
@@ -275,7 +268,6 @@ async function handleEtapa(numero, txt) {
       break;
     }
 
-    // ── ADESIVOS — LAMINAÇÃO ──
     case 'ADESIVO_LAMINACAO': {
       const ops = {'1':'Sim','2':'Não','sim':'Sim','não':'Não','nao':'Não','s':'Sim','n':'Não'};
       const val = ops[txt.toLowerCase()] || null;
@@ -285,7 +277,6 @@ async function handleEtapa(numero, txt) {
       break;
     }
 
-    // ── FOTOS — ÍMÃ ──
     case 'FOTO_IMA': {
       const ops = {'1':'Com ímã','2':'Sem ímã','com ima':'Com ímã','sem ima':'Sem ímã','com ímã':'Com ímã','sem ímã':'Sem ímã'};
       const val = ops[txt.toLowerCase()] || null;
@@ -297,7 +288,6 @@ async function handleEtapa(numero, txt) {
       break;
     }
 
-    // ── FOTOS — MODELO ──
     case 'FOTO_MODELO': {
       const modelos = {
         '1':'Foto Normal A6','2':'Foto Polaroid 7x9 cm',
@@ -316,14 +306,12 @@ async function handleEtapa(numero, txt) {
       break;
     }
 
-    // ── FOTOS — OUTRO MODELO ──
     case 'FOTO_OUTRO_MODELO': {
       s.dados.modelo = txt;
       await finalizarOrcamento(numero);
       break;
     }
 
-    // ── ENCADERNAÇÃO — PRODUTO ──
     case 'ENCAD_PRODUTO': {
       const prods = {
         '1':'Caderno A5','2':'Agenda A5','3':'Caderneta de Vacinação A5',
@@ -341,7 +329,6 @@ async function handleEtapa(numero, txt) {
       break;
     }
 
-    // ── CADERNO — MIOLO ──
     case 'ENCAD_CADERNO_MIOLO': {
       const ops = {'1':'Pautado','2':'Pontilhado','3':'Sem pauta','pautado':'Pautado','pontilhado':'Pontilhado','sem pauta':'Sem pauta'};
       const val = ops[txt.toLowerCase()] || null;
@@ -353,7 +340,6 @@ async function handleEtapa(numero, txt) {
       break;
     }
 
-    // ── AGENDA — MODELO ──
     case 'ENCAD_AGENDA_MODELO': {
       const ops = {'1':'Dois dias por página','2':'Um dia por página'};
       const val = ops[txt] || null;
@@ -365,7 +351,6 @@ async function handleEtapa(numero, txt) {
       break;
     }
 
-    // ── AGENDA — TIPO ──
     case 'ENCAD_AGENDA_TIPO': {
       const ops = {'1':'Datada','2':'Permanente','datada':'Datada','permanente':'Permanente'};
       const val = ops[txt.toLowerCase()] || null;
@@ -377,7 +362,6 @@ async function handleEtapa(numero, txt) {
       break;
     }
 
-    // ── VACINAÇÃO — TIPO ──
     case 'ENCAD_VACINA_TIPO': {
       const ops = {'1':'Restauração','2':'Nova','restauração':'Restauração','nova':'Nova','restauracao':'Restauração'};
       const val = ops[txt.toLowerCase()] || null;
@@ -389,7 +373,6 @@ async function handleEtapa(numero, txt) {
       break;
     }
 
-    // ── TEMAS (genérico) ──
     case 'ENCAD_CADERNO_TEMA':
     case 'ENCAD_AGENDA_TEMA':
     case 'ENCAD_VACINA_TEMA':
@@ -399,21 +382,18 @@ async function handleEtapa(numero, txt) {
       break;
     }
 
-    // ── ENCAD OUTRO ──
     case 'ENCAD_OUTRO': {
       s.dados.descricao = txt;
       await finalizarOrcamento(numero);
       break;
     }
 
-    // ── OUTRO ──
     case 'OUTRO_DESC': {
       s.dados.descricao = txt;
       await finalizarOrcamento(numero);
       break;
     }
 
-    // ── COLETAR NOME ──
     case 'COLETAR_NOME': {
       s.dados.nome = txt;
       s.historico.push('COLETAR_NOME');
@@ -422,7 +402,6 @@ async function handleEtapa(numero, txt) {
       break;
     }
 
-    // ── COLETAR CONTATO ──
     case 'COLETAR_CONTATO': {
       s.dados.contato = txt;
       await confirmarPedido(numero);
@@ -530,7 +509,6 @@ async function mostrarValoresFoto(numero) {
     if (ima === 'Sem ímã') tabela = `• Kit com 5 fotos: *R$ 25,00*`;
     else tabela = `• Kit com 5 fotos: *R$ 30,00*`;
   } else {
-    // Foto Normal A6 ou outros sem preço definido
     tabela = `• Preço sob consulta`;
   }
 
@@ -547,7 +525,6 @@ Deseja prosseguir com o pedido?
   s.etapa = 'FOTO_CONFIRMAR';
 }
 
-// Handler para confirmação de foto
 async function handleFotoConfirmar(numero, txt) {
   const s = getSessao(numero);
   if (txt === '1' || /sim/i.test(txt)) {
@@ -670,7 +647,6 @@ async function confirmarPedido(numero) {
   const s = getSessao(numero);
   const d = s.dados;
 
-  // Montar resumo
   const linhas = Object.entries(d)
     .filter(([k]) => k !== 'etapa')
     .map(([k, v]) => `• *${capitalize(k)}:* ${v}`)
@@ -698,8 +674,18 @@ function capitalize(str) {
 app.post('/webhook', async (req, res) => {
   res.sendStatus(200);
   try {
-    const body = req.body;
-    console.log('Webhook:', JSON.stringify(body).slice(0, 400));
+    let body = req.body;
+    console.log('Webhook raw:', JSON.stringify(body).slice(0, 200));
+
+    // Evolution API com webhookBase64: true envia body.data como string Base64
+    if (body && typeof body.data === 'string') {
+      try {
+        body = { ...body, data: JSON.parse(Buffer.from(body.data, 'base64').toString('utf8')) };
+      } catch (e) {
+        console.error('Erro ao decodificar base64:', e.message);
+        return;
+      }
+    }
 
     const evento = body?.event || body?.type || '';
     if (!evento.includes('message')) return;
@@ -719,7 +705,6 @@ app.post('/webhook', async (req, res) => {
     console.log('De:', numero, '| Msg:', texto);
     if (!numero || !texto) return;
 
-    // Handler especial para confirmação de foto
     const s = getSessao(numero);
     if (s.etapa === 'FOTO_CONFIRMAR') {
       await handleFotoConfirmar(numero, texto.trim());
