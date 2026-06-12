@@ -743,7 +743,6 @@ app.post('/webhook', async (req, res) => {
     const msg = body?.data?.messages?.[0] || body?.data || body?.messages?.[0] || null;
     console.log('Msg extraída:', JSON.stringify(msg)?.slice(0, 300));
     if (!msg) return;
-    if (msg.key?.fromMe) return;
 
     const remoteJid = msg.key?.remoteJid || msg.remoteJid || '';
     if (remoteJid.includes('@g.us')) return;
@@ -753,8 +752,17 @@ app.post('/webhook', async (req, res) => {
                || msg.message?.extendedTextMessage?.text
                || msg.body || msg.text || '';
 
-    console.log('De:', numero, '| Msg:', texto);
+    console.log('De:', numero, '| fromMe:', msg.key?.fromMe, '| Msg:', texto);
     if (!numero || !texto) return;
+
+    // Giselle digita "pedido finalizado" na conversa → reativa o bot para aquele cliente
+    if (msg.key?.fromMe) {
+      if (texto.trim().toLowerCase() === 'pedido finalizado') {
+        resetarSessao(numero);
+        console.log('Sessão reativada para:', numero);
+      }
+      return;
+    }
 
     const s = getSessao(numero);
     if (s.etapa === 'FOTO_CONFIRMAR') {
