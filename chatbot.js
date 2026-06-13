@@ -28,6 +28,36 @@ const transporter = nodemailer.createTransport({
   auth: { user: CONFIG.EMAIL_USER, pass: CONFIG.EMAIL_PASS },
 });
 
+// ── PERSISTÊNCIA DE CLIENTES ───────────────────────────────
+const fs = require('fs');
+const CLIENTES_FILE = process.env.CLIENTES_FILE || './clientes.json';
+
+function carregarClientes() {
+  try {
+    if (fs.existsSync(CLIENTES_FILE)) {
+      return JSON.parse(fs.readFileSync(CLIENTES_FILE, 'utf8'));
+    }
+  } catch (e) {
+    console.error('Erro ao carregar clientes:', e.message);
+  }
+  return {};
+}
+
+function salvarCliente(numero, nome, contato) {
+  try {
+    const clientes = carregarClientes();
+    clientes[numero] = { nome, contato };
+    fs.writeFileSync(CLIENTES_FILE, JSON.stringify(clientes, null, 2));
+  } catch (e) {
+    console.error('Erro ao salvar cliente:', e.message);
+  }
+}
+
+function getCliente(numero) {
+  const clientes = carregarClientes();
+  return clientes[numero] || null;
+}
+
 // ── ESTADO DAS SESSÕES ─────────────────────────────────────
 const sessoes = {};
 
@@ -225,6 +255,7 @@ async function despachar(numero) {
     case 'ARTE_PERGUNTA':       return perguntarArte(numero);
     case 'NOVA_PECA_PERGUNTA':  return perguntarNovaPeca(numero);
     case 'NOVA_PECA_DESC':      return perguntarNovaPecaDesc(numero);
+    case 'CONFIRMAR_DADOS':     return reconfirmarDados(numero);
     case 'COLETAR_NOME':        return perguntarNome(numero);
     case 'COLETAR_CONTATO':     return perguntarContato(numero);
     default:                    return mostrarMenu(numero);
@@ -497,8 +528,7 @@ async function handleEtapa(numero, txt) {
         await perguntarNovaPecaDesc(numero);
       } else {
         s.historico.push('NOVA_PECA_PERGUNTA');
-        s.etapa = 'COLETAR_NOME';
-        await perguntarNome(numero);
+        await iniciarColetaDados(numero);
       }
       break;
     }
@@ -507,8 +537,7 @@ async function handleEtapa(numero, txt) {
     case 'NOVA_PECA_DESC': {
       s.dados.itensAdicionais = txt;
       s.historico.push('NOVA_PECA_DESC');
-      s.etapa = 'COLETAR_NOME';
-      await perguntarNome(numero);
+      await iniciarColetaDados(numero);
       break;
     }
 
@@ -524,7 +553,22 @@ async function handleEtapa(numero, txt) {
     // ── COLETAR CONTATO ──
     case 'COLETAR_CONTATO': {
       s.dados.contato = txt;
+      salvarCliente(numero, s.dados.nome, s.dados.contato);
       await confirmarPedido(numero);
+      break;
+    }
+
+    // ── CONFIRMAR DADOS SALVOS ──
+    case 'CONFIRMAR_DADOS': {
+      if (txt === '1' || /sim/i.test(txt)) {
+        const cliente = getCliente(numero);
+        s.dados.nome = cliente.nome;
+        s.dados.contato = cliente.contato;
+        await confirmarPedido(numero);
+      } else {
+        s.etapa = 'COLETAR_NOME';
+        await perguntarNome(numero);
+      }
       break;
     }
 
@@ -755,6 +799,41 @@ Informe o *produto*, *tamanho* e *quantidade*.
 Ex: _50 adesivos redondos 5cm, 10 fotos polaroid sem ímã_
 
 _Digite *voltar* para retornar._`);
+}
+
+async function iniciarColetaDados(numero) {
+  const s = getSessao(numero);
+  const cliente = getCliente(numero);
+  if (cliente) {
+    s.etapa = 'CONFIRMAR_DADOS';
+    await enviar(numero,
+`😊 Já te conheço! Seus dados cadastrados são:
+
+👤 *Nome:* ${cliente.nome}
+📱 *Contato:* ${cliente.contato}
+
+Confirma que esses dados estão corretos?
+
+*1* — Sim, confirmar
+*2* — Não, quero alterar`);
+  } else {
+    s.etapa = 'COLETAR_NOME';
+    await perguntarNome(numero);
+  }
+}
+
+async function reconfirmarDados(numero) {
+  const cliente = getCliente(numero);
+  await enviar(numero,
+`😊 Já te conheço! Seus dados cadastrados são:
+
+👤 *Nome:* ${cliente.nome}
+📱 *Contato:* ${cliente.contato}
+
+Confirma que esses dados estão corretos?
+
+*1* — Sim, confirmar
+*2* — Não, quero alterar`);
 }
 
 async function perguntarNome(numero) {
